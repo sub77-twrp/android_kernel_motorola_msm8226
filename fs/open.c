@@ -30,7 +30,6 @@
 #include <linux/fs_struct.h>
 #include <linux/ima.h>
 #include <linux/dnotify.h>
-#include <linux/fdleak_dbg.h>
 
 #include "internal.h"
 
@@ -649,24 +648,24 @@ static inline int __get_file_write_access(struct inode *inode,
 	return error;
 }
 
-static struct file *__dentry_open(struct path *path, struct file *f,
-				  int (*open)(struct inode *, struct file *),
-				  const struct cred *cred)
+static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
+					struct file *f,
+					int (*open)(struct inode *, struct file *),
+					const struct cred *cred)
 {
 	static const struct file_operations empty_fops = {};
 	struct inode *inode;
 	int error;
 
-	path_get(path);
 	f->f_mode = OPEN_FMODE(f->f_flags) | FMODE_LSEEK |
 				FMODE_PREAD | FMODE_PWRITE;
 
 	if (unlikely(f->f_flags & O_PATH))
 		f->f_mode = FMODE_PATH;
 
-	inode = path->dentry->d_inode;
+	inode = dentry->d_inode;
 	if (f->f_mode & FMODE_WRITE) {
-		error = __get_file_write_access(inode, path->mnt);
+		error = __get_file_write_access(inode, mnt);
 		if (error)
 			goto cleanup_file;
 		if (!special_file(inode->i_mode))
@@ -674,7 +673,8 @@ static struct file *__dentry_open(struct path *path, struct file *f,
 	}
 
 	f->f_mapping = inode->i_mapping;
-	f->f_path = *path;
+	f->f_path.dentry = dentry;
+	f->f_path.mnt = mnt;
 	f->f_pos = 0;
 	file_sb_list_add(f, inode->i_sb);
 
@@ -731,7 +731,7 @@ cleanup_all:
 			 * here, so just reset the state.
 			 */
 			file_reset_write(f);
-			mnt_drop_write(path->mnt);
+			mnt_drop_write(mnt);
 		}
 	}
 	file_sb_list_del(f);
@@ -739,7 +739,8 @@ cleanup_all:
 	f->f_path.mnt = NULL;
 cleanup_file:
 	put_filp(f);
-	path_put(path);
+	dput(dentry);
+	mntput(mnt);
 	return ERR_PTR(error);
 }
 
@@ -765,14 +766,14 @@ cleanup_file:
 struct file *lookup_instantiate_filp(struct nameidata *nd, struct dentry *dentry,
 		int (*open)(struct inode *, struct file *))
 {
-	struct path path = { .dentry = dentry, .mnt = nd->path.mnt };
 	const struct cred *cred = current_cred();
 
 	if (IS_ERR(nd->intent.open.file))
 		goto out;
 	if (IS_ERR(dentry))
 		goto out_err;
-	nd->intent.open.file = __dentry_open(&path, nd->intent.open.file,
+	nd->intent.open.file = __dentry_open(dget(dentry), mntget(nd->path.mnt),
+					     nd->intent.open.file,
 					     open, cred);
 out:
 	return nd->intent.open.file;
@@ -800,9 +801,11 @@ struct file *nameidata_to_filp(struct nameidata *nd)
 	nd->intent.open.file = NULL;
 
 	/* Has the filesystem initialised the file for us? */
-	if (filp->f_path.dentry == NULL)
-		filp = vfs_open(&nd->path, filp, cred);
-
+	if (filp->f_path.dentry == NULL) {
+		path_get(&nd->path);
+		filp = __dentry_open(nd->path.dentry, nd->path.mnt, filp,
+				     NULL, cred);
+	}
 	return filp;
 }
 
@@ -813,92 +816,26 @@ struct file *nameidata_to_filp(struct nameidata *nd)
 struct file *dentry_open(struct dentry *dentry, struct vfsmount *mnt, int flags,
 			 const struct cred *cred)
 {
+	int error;
 	struct file *f;
-	struct file *ret;
-	struct path path = { .dentry = dentry, .mnt = mnt };
 
 	validate_creds(cred);
 
 	/* We must always pass in a valid mount pointer. */
 	BUG_ON(!mnt);
 
-	ret = ERR_PTR(-ENFILE);
+	error = -ENFILE;
 	f = get_empty_filp();
-	if (f != NULL) {
-		f->f_flags = flags;
-		ret = vfs_open(&path, f, cred);
+	if (f == NULL) {
+		dput(dentry);
+		mntput(mnt);
+		return ERR_PTR(error);
 	}
-	path_put(&path);
 
-	return ret;
+	f->f_flags = flags;
+	return __dentry_open(dentry, mnt, f, NULL, cred);
 }
 EXPORT_SYMBOL(dentry_open);
-
-/**
- * vfs_open - open the file at the given path
- * @path: path to open
- * @filp: newly allocated file with f_flag initialized
- * @cred: credentials to use
- *
- * Open the file.  If successful, the returned file will have acquired
- * an additional reference for path.
- */
-struct file *vfs_open(struct path *path, struct file *filp,
-		      const struct cred *cred)
-{
-	struct inode *inode = path->dentry->d_inode;
-
-	if (inode->i_op->open)
-		return inode->i_op->open(path->dentry, filp, cred);
-	else
-		return __dentry_open(path, filp, NULL, cred);
-}
-EXPORT_SYMBOL(vfs_open);
-
-static void __put_unused_fd(struct files_struct *files, unsigned int fd)
-{
-	struct fdtable *fdt = files_fdtable(files);
-	__clear_open_fd(fd, fdt);
-	if (fd < files->next_fd)
-		files->next_fd = fd;
-}
-
-void put_unused_fd(unsigned int fd)
-{
-	struct files_struct *files = current->files;
-	spin_lock(&files->file_lock);
-	__put_unused_fd(files, fd);
-	spin_unlock(&files->file_lock);
-}
-
-EXPORT_SYMBOL(put_unused_fd);
-
-/*
- * Install a file pointer in the fd array.
- *
- * The VFS is full of places where we drop the files lock between
- * setting the open_fds bitmap and installing the file in the file
- * array.  At any such point, we are vulnerable to a dup2() race
- * installing a file in the array before us.  We need to detect this and
- * fput() the struct file we are about to overwrite in this case.
- *
- * It should never happen - if we allow dup2() do it, _really_ bad things
- * will follow.
- */
-
-void fd_install(unsigned int fd, struct file *file)
-{
-	struct files_struct *files = current->files;
-	struct fdtable *fdt;
-	spin_lock(&files->file_lock);
-	fdt = files_fdtable(files);
-	BUG_ON(fdt->fd[fd] != NULL);
-	rcu_assign_pointer(fdt->fd[fd], file);
-	spin_unlock(&files->file_lock);
-	warn_if_big_fd(fd, current);
-}
-
-EXPORT_SYMBOL(fd_install);
 
 static inline int build_open_flags(int flags, umode_t mode, struct open_flags *op)
 {
@@ -1091,23 +1028,7 @@ EXPORT_SYMBOL(filp_close);
  */
 SYSCALL_DEFINE1(close, unsigned int, fd)
 {
-	struct file * filp;
-	struct files_struct *files = current->files;
-	struct fdtable *fdt;
-	int retval;
-
-	spin_lock(&files->file_lock);
-	fdt = files_fdtable(files);
-	if (fd >= fdt->max_fds)
-		goto out_unlock;
-	filp = fdt->fd[fd];
-	if (!filp)
-		goto out_unlock;
-	rcu_assign_pointer(fdt->fd[fd], NULL);
-	__clear_close_on_exec(fd, fdt);
-	__put_unused_fd(files, fd);
-	spin_unlock(&files->file_lock);
-	retval = filp_close(filp, files);
+	int retval = __close_fd(current->files, fd);
 
 	/* can't restart close syscall because file table entry was cleared */
 	if (unlikely(retval == -ERESTARTSYS ||
@@ -1117,10 +1038,6 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 		retval = -EINTR;
 
 	return retval;
-
-out_unlock:
-	spin_unlock(&files->file_lock);
-	return -EBADF;
 }
 EXPORT_SYMBOL(sys_close);
 

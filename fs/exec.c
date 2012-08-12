@@ -55,7 +55,6 @@
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
 #include <linux/compat.h>
-#include <linux/resource.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -732,24 +731,23 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	/* mprotect_fixup is overkill to remove the temporary stack flags */
 	vma->vm_flags &= ~VM_STACK_INCOMPLETE_SETUP;
 
-#ifdef _STK_LIM
-	/* save all the virtual space we're allowed */
-	stack_expand = ((_STK_LIM) & (PAGE_MASK));
-#else
 	stack_expand = 131072UL; /* randomly 32*4k (or 2*64k) pages */
-#endif
 	stack_size = vma->vm_end - vma->vm_start;
 	/*
 	 * Align this down to a page boundary as expand_stack
 	 * will align it up.
 	 */
 	rlim_stack = rlimit(RLIMIT_STACK) & PAGE_MASK;
-	if (stack_size + stack_expand > rlim_stack)
-		stack_expand = rlim_stack - stack_size;
 #ifdef CONFIG_STACK_GROWSUP
-	stack_base = vma->vm_end + stack_expand;
+	if (stack_size + stack_expand > rlim_stack)
+		stack_base = vma->vm_start + rlim_stack;
+	else
+		stack_base = vma->vm_end + stack_expand;
 #else
-	stack_base = vma->vm_start - stack_expand;
+	if (stack_size + stack_expand > rlim_stack)
+		stack_base = vma->vm_end - rlim_stack;
+	else
+		stack_base = vma->vm_start - stack_expand;
 #endif
 	current->mm->start_stack = bprm->p;
 	ret = expand_stack(vma, stack_base);
@@ -1017,40 +1015,6 @@ no_thread_group:
 	return 0;
 }
 
-/*
- * These functions flushes out all traces of the currently running executable
- * so that a new one can be started
- */
-static void flush_old_files(struct files_struct * files)
-{
-	long j = -1;
-	struct fdtable *fdt;
-
-	spin_lock(&files->file_lock);
-	for (;;) {
-		unsigned long set, i;
-
-		j++;
-		i = j * __NFDBITS;
-		fdt = files_fdtable(files);
-		if (i >= fdt->max_fds)
-			break;
-		set = fdt->close_on_exec[j];
-		if (!set)
-			continue;
-		fdt->close_on_exec[j] = 0;
-		spin_unlock(&files->file_lock);
-		for ( ; set ; i++,set >>= 1) {
-			if (set & 1) {
-				sys_close(i);
-			}
-		}
-		spin_lock(&files->file_lock);
-
-	}
-	spin_unlock(&files->file_lock);
-}
-
 char *get_task_comm(char *buf, struct task_struct *tsk)
 {
 	/* buf must be at least sizeof(tsk->comm) in size */
@@ -1060,6 +1024,11 @@ char *get_task_comm(char *buf, struct task_struct *tsk)
 	return buf;
 }
 EXPORT_SYMBOL_GPL(get_task_comm);
+
+/*
+ * These functions flushes out all traces of the currently running executable
+ * so that a new one can be started
+ */
 
 void set_task_comm(struct task_struct *tsk, char *buf)
 {
@@ -1176,7 +1145,7 @@ void setup_new_exec(struct linux_binprm * bprm)
 	current->self_exec_id++;
 			
 	flush_signal_handlers(current, 0);
-	flush_old_files(current->files);
+	do_close_on_exec(current->files);
 }
 EXPORT_SYMBOL(setup_new_exec);
 
@@ -1311,9 +1280,11 @@ static void bprm_fill_uid(struct linux_binprm *bprm)
 	bprm->cred->euid = current_euid();
 	bprm->cred->egid = current_egid();
 
-	if ((bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID) &&
-		(task_no_new_privs(current)))
-			return;
+	if (bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID)
+		return;
+
+	if (task_no_new_privs(current))
+		return;
 
 	inode = bprm->file->f_path.dentry->d_inode;
 	mode = ACCESS_ONCE(inode->i_mode);
