@@ -1227,7 +1227,7 @@ static int dispatcher_do_fault(struct kgsl_device *device)
 	adreno_readreg(adreno_dev, ADRENO_REG_CP_IB1_BASE, &base);
 
 	/*
-	 * Dump the postmortem and snapshot information if this is the first
+	 * Dump the snapshot information if this is the first
 	 * detected fault for the oldest active command batch
 	 */
 
@@ -1236,10 +1236,6 @@ static int dispatcher_do_fault(struct kgsl_device *device)
 		char sys_path[256];
 
 		adreno_fault_header(device, cmdbatch);
-
-		if (device->pm_dump_enable)
-			kgsl_postmortem_dump(device, 0);
-
 		kgsl_device_snapshot(device, 1);
 
 		path = kobject_get_path(&device->snapshot_kobj, GFP_KERNEL);
