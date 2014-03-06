@@ -338,6 +338,11 @@ struct mdss_panel_info {
 	u32 min_fps;
 	u32 max_fps;
 
+	u32 xstart_pix_align;
+	u32 width_pix_align;
+	u32 ystart_pix_align;
+	u32 height_pix_align;
+
 	u32 cont_splash_enabled;
 	u32 cont_splash_feature_on;
 	bool cont_splash_esd_rdy;
