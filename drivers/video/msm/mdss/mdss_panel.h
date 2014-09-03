@@ -335,6 +335,8 @@ struct mdss_panel_info {
 	bool ulps_feature_enabled;
 	char dfps_update;
 	int new_fps;
+	u32 min_fps;
+	u32 max_fps;
 
 	u32 cont_splash_enabled;
 	u32 cont_splash_feature_on;
