@@ -21,8 +21,8 @@
 #define DFSO_UPTHRESHOLD	60
 #define DFSO_DOWNDIFFERENCTIAL	20
 
-unsigned int dfso_upthreshold = DFSO_UPTHRESHOLD;
-unsigned int dfso_downdifferential = DFSO_DOWNDIFFERENCTIAL;
+static unsigned int dfso_upthreshold = DFSO_UPTHRESHOLD;
+static unsigned int dfso_downdifferential = DFSO_DOWNDIFFERENCTIAL;
 
 
 static int devfreq_simple_ondemand_func(struct devfreq *df,
@@ -30,11 +30,9 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 					u32 *flag)
 {
 	struct devfreq_dev_status stat;
+	struct devfreq_simple_ondemand_data *data = df->data;
 	int err;
 	unsigned long long a, b;
-	unsigned int dfso_upthreshold = DFSO_UPTHRESHOLD;
-	unsigned int dfso_downdifferential = DFSO_DOWNDIFFERENCTIAL;
-	struct devfreq_simple_ondemand_data *data = df->data;
 	unsigned long max = (df->max_freq) ? df->max_freq : UINT_MAX;
 	unsigned long min = (df->min_freq) ? df->min_freq : 0;
 
@@ -44,20 +42,22 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 	if (err)
 		return err;
 
-	if (data) {
-		if (data->upthreshold)
-			dfso_upthreshold = data->upthreshold;
-		if (data->downdifferential)
-			dfso_downdifferential = data->downdifferential;
-	}
-	if (dfso_upthreshold > 100 ||
-	    dfso_upthreshold < dfso_downdifferential)
-		return -EINVAL;
-
 	/* Prevent overflow */
 	if (stat.busy_time >= (1 << 24) || stat.total_time >= (1 << 24)) {
 		stat.busy_time >>= 7;
 		stat.total_time >>= 7;
+	}
+
+	if (data && data->simple_scaling) {
+		if (stat.busy_time * 100 >
+		    stat.total_time * dfso_upthreshold)
+			*freq = max;
+		else if (stat.busy_time * 100 <
+		    stat.total_time * dfso_downdifferential)
+			*freq = min;
+		else
+			*freq = df->previous_freq;
+		return 0;
 	}
 
 	/* Assume MAX if it is going to be divided by zero */
@@ -223,3 +223,4 @@ static void __exit devfreq_simple_ondemand_exit(void)
 }
 module_exit(devfreq_simple_ondemand_exit);
 MODULE_LICENSE("GPL");
+
