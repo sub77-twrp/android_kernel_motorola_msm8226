@@ -11,6 +11,7 @@
 #include <linux/list.h>
 #include <linux/cpumask.h>
 #include <linux/init.h>
+#include <linux/irqflags.h>
 
 extern void cpu_idle(void);
 
@@ -20,7 +21,6 @@ struct call_single_data {
 	smp_call_func_t func;
 	void *info;
 	u16 flags;
-	u16 priv;
 };
 
 /* total number of cpus in this system (may exceed NR_CPUS) */
@@ -62,7 +62,7 @@ extern void smp_prepare_cpus(unsigned int max_cpus);
 /*
  * Bring a CPU up
  */
-extern int __cpu_up(unsigned int cpunum);
+extern int __cpu_up(unsigned int cpunum, struct task_struct *tidle);
 
 /*
  * Final polishing of CPUs
@@ -88,11 +88,8 @@ int smp_call_function_any(const struct cpumask *mask,
 #ifdef CONFIG_USE_GENERIC_SMP_HELPERS
 void __init call_function_init(void);
 void generic_smp_call_function_single_interrupt(void);
-void generic_smp_call_function_interrupt(void);
-void ipi_call_lock(void);
-void ipi_call_unlock(void);
-void ipi_call_lock_irq(void);
-void ipi_call_unlock_irq(void);
+#define generic_smp_call_function_interrupt \
+	generic_smp_call_function_single_interrupt
 #else
 static inline void call_function_init(void) { }
 #endif
@@ -142,13 +139,17 @@ static inline int up_smp_call_function(smp_call_func_t func, void *info)
 }
 #define smp_call_function(func, info, wait) \
 			(up_smp_call_function(func, info))
-#define on_each_cpu(func,info,wait)		\
-	({					\
-		local_irq_disable();		\
-		func(info);			\
-		local_irq_enable();		\
-		0;				\
-	})
+
+static inline int on_each_cpu(smp_call_func_t func, void *info, int wait)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	func(info);
+	local_irq_restore(flags);
+	return 0;
+}
+
 /*
  * Note we still need to test the mask even for UP
  * because we actually can get an empty mask from
@@ -180,7 +181,6 @@ static inline int up_smp_call_function(smp_call_func_t func, void *info)
 	} while (0)
 
 static inline void smp_send_reschedule(int cpu) { }
-#define num_booting_cpus()			1
 #define smp_prepare_boot_cpu()			do {} while (0)
 #define smp_call_function_many(mask, func, info, wait) \
 			(up_smp_call_function(func, info))
