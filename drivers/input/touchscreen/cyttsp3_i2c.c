@@ -133,21 +133,23 @@ static int __devexit cyttsp_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
-#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
-static int cyttsp_i2c_suspend(struct i2c_client *client, pm_message_t message)
+static int cyttsp_i2c_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct cyttsp_i2c *ts = i2c_get_clientdata(client);
 
 	return cyttsp_suspend(ts);
 }
 
-static int cyttsp_i2c_resume(struct i2c_client *client)
+static int cyttsp_i2c_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct cyttsp_i2c *ts = i2c_get_clientdata(client);
 
 	return cyttsp_resume(ts);
 }
-#endif
+
+static SIMPLE_DEV_PM_OPS(cyttsp_pm, cyttsp_i2c_suspend, cyttsp_i2c_resume);
 
 static const struct i2c_device_id cyttsp_i2c_id[] = {
 	{ CY_I2C_NAME, 0 },  { }
@@ -167,14 +169,11 @@ static struct i2c_driver cyttsp_i2c_driver = {
 		.name = CY_I2C_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = cyttsp_match_table,
+		.pm	= &cyttsp_pm,
 	},
 	.probe = cyttsp_i2c_probe,
 	.remove = __devexit_p(cyttsp_i2c_remove),
 	.id_table = cyttsp_i2c_id,
-#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
-	.suspend = cyttsp_i2c_suspend,
-	.resume = cyttsp_i2c_resume,
-#endif
 };
 
 static int __init cyttsp_i2c_init(void)
