@@ -28,9 +28,7 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/input.h>
-#ifdef CONFIG_POWERSUSPEND
-#include <linux/powersuspend.h>
-#endif
+#include <linux/lcd_notify.h>
 #include <linux/hrtimer.h>
 #include <asm-generic/cputime.h>
 
@@ -69,9 +67,9 @@ static cputime64_t tap_time_pre = 0;
 static int touch_x = 0, touch_y = 0, touch_nr = 0, x_pre = 0, y_pre = 0;
 static bool touch_x_called = false, touch_y_called = false, touch_cnt = true;
 static bool exec_count = true;
-//static struct notifier_block dt2w_lcd_notif;
 static struct input_dev * doubletap2wake_pwrdev;
 static DEFINE_MUTEX(pwrkeyworklock);
+static struct notifier_block notif;
 static struct workqueue_struct *dt2w_input_wq;
 static struct work_struct dt2w_input_work;
 
@@ -290,22 +288,21 @@ static struct input_handler dt2w_input_handler = {
 	.id_table	= dt2w_ids,
 };
 
-#ifdef CONFIG_POWERSUSPEND
-static void dt2w_early_suspend(struct power_suspend *h) 
+static int lcd_notifier_callback(struct notifier_block *this,
+				unsigned long event, void *data)
 {
-	dt2w_scr_suspended = true;
+	switch (event) {
+		case LCD_EVENT_ON_END:
+			dt2w_scr_suspended = false;
+			break;
+		case LCD_EVENT_OFF_END:
+			dt2w_scr_suspended = true;
+			break;
+		default:
+			break;
+	}
+	return NOTIFY_OK;
 }
-
-static void dt2w_late_resume(struct power_suspend *h) 
-{
-	dt2w_scr_suspended = false;
-}
-
-static struct power_suspend dt2w_early_suspend_handler = {
-	.suspend = dt2w_early_suspend,
-	.resume = dt2w_late_resume,
-};
-#endif
 
 /*
  * SYSFS stuff below here
@@ -391,9 +388,9 @@ static int __init doubletap2wake_init(void)
 	if (rc)
 		pr_err("%s: Failed to register dt2w_input_handler\n", __func__);
 
-#ifdef CONFIG_POWERSUSPEND
-	register_power_suspend(&dt2w_early_suspend_handler);
-#endif
+	notif.notifier_call = lcd_notifier_callback;
+	if (lcd_register_client(&notif))
+		return -EINVAL;
 
 #ifndef ANDROID_TOUCH_DECLARED
 	android_touch_kobj = kobject_create_and_add("android_touch", NULL) ;
