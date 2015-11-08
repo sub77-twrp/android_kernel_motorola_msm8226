@@ -85,7 +85,6 @@ struct akm8963_data {
 };
 
 static struct akm8963_data *s_akm;
-static bool suspend = false;
 
 /***** I2C I/O functions **********************************************/
 
@@ -1313,7 +1312,6 @@ static void akm8963_suspend(void)
 	s_akm->drdy_flag = 0;
 	s_akm->busy_flag = 0;
 	s_akm->active_flag = 0;
-	suspend = false;
 	mutex_unlock(&s_akm->state_mutex);
 
 	wake_up(&s_akm->open_wq);
