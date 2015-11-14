@@ -1500,7 +1500,7 @@ int akm8963_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				s_akm->irq,
 				NULL,
 				akm8963_irq,
-				IRQF_TRIGGER_RISING,
+				IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND,
 				dev_name(&client->dev),
 				s_akm);
 		if (err < 0) {
