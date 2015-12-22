@@ -89,8 +89,6 @@
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
-		qcom,ulps-enabled;
-		qcom,partial-update-enabled;
 
 		qcom,mdss-dsi-esd-det-mode = <1>;
 
@@ -235,8 +233,6 @@
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
-		qcom,ulps-enabled;
-		qcom,partial-update-enabled;
 
 		qcom,mdss-dsi-esd-det-mode = <1>;
 
@@ -340,8 +336,6 @@
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
-		qcom,ulps-enabled;
-		qcom,partial-update-enabled;
 
 		qcom,mdss-dsi-esd-det-mode = <1>;
 
