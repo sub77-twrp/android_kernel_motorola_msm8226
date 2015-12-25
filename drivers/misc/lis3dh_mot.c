@@ -27,7 +27,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
-#include <linux/lcd_notify.h>
+#include <linux/suspend.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/lis3dh_mot.h>
@@ -153,7 +153,7 @@ struct lis3dh_data {
 	u8 resume_state[5];
 	u8 irq_config[3];
 
-	struct notifier_block notif;
+	struct notifier_block pm_notifier;
 };
 
 /*
@@ -789,33 +789,54 @@ static void lis3dh_input_cleanup(struct lis3dh_data *lis)
 	input_free_device(lis->input_dev);
 }
 
-static void lis3dh_resume(void)
+static int lis3dh_resume(struct lis3dh_data *lis)
 {
-	if (lis3dh_misc_data->on_before_suspend)
-		lis3dh_enable(lis3dh_misc_data);
-}
+	int err;
 
-static void lis3dh_suspend(void)
-{
-	lis3dh_misc_data->on_before_suspend =
-		atomic_read(&lis3dh_misc_data->enabled);
-	lis3dh_disable(lis3dh_misc_data);
-}
-
-static int lcd_notifier_callback(struct notifier_block *this,
-				unsigned long event, void *data)
-{
-	switch (event) {
-		case LCD_EVENT_ON_END:
-			lis3dh_resume();
-			break;
-		case LCD_EVENT_OFF_START:
-			lis3dh_suspend();
-			break;
-		default:
-			break;
+	if (lis->on_before_suspend) {
+		err = lis3dh_enable(lis);
+		if (err < 0)
+			dev_err(&lis->client->dev,
+				"resume failure\n");
 	}
-	return NOTIFY_OK;
+	return 0;
+}
+
+static int lis3dh_suspend(struct lis3dh_data *lis)
+{
+	int err;
+
+	lis->on_before_suspend =
+		atomic_read(&lis->enabled);
+	if (lis->on_before_suspend) {
+		err = lis3dh_disable(lis);
+		if (err < 0)
+			dev_err(&lis->client->dev, "suspend failure\n");
+	}
+
+	return 0;
+}
+
+static int lis3dh_pm_event(struct notifier_block *this,
+	unsigned long event, void *ptr)
+{
+	struct lis3dh_data *lis = container_of(this,
+		struct lis3dh_data, pm_notifier);
+
+	mutex_lock(&lis->lock);
+
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		lis3dh_suspend(lis);
+		break;
+	case PM_POST_SUSPEND:
+		lis3dh_resume(lis);
+		break;
+	}
+
+	mutex_unlock(&lis->lock);
+
+	return NOTIFY_DONE;
 }
 
 #ifdef CONFIG_OF
@@ -875,9 +896,6 @@ static int lis3dh_probe(struct i2c_client *client,
 		err = -ENODEV;
 		goto err0;
 	}
-
-	/** Wait for at least 100us before starting I2C talking **/
-	usleep_range(100, 100);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "client not i2c capable\n");
@@ -992,10 +1010,10 @@ static int lis3dh_probe(struct i2c_client *client,
 
 	lis3dh_device_power_off(lis);
 
-	lis->notif.notifier_call = lcd_notifier_callback;
-	err = lcd_register_client(&lis->notif);
+	lis->pm_notifier.notifier_call = lis3dh_pm_event;
+	err = register_pm_notifier(&lis->pm_notifier);
 	if (err < 0) {
-		pr_err("%s:Register_LCD_notifier failed: %d\n", __func__, err);
+		pr_err("%s:Register_pm_notifier failed: %d\n", __func__, err);
 		goto err5;
 	}
 
@@ -1037,7 +1055,7 @@ static int __devexit lis3dh_remove(struct i2c_client *client)
 		regulator_put(lis->vdd);
 	}
 
-	lcd_unregister_client(&lis->notif);
+	unregister_pm_notifier(&lis->pm_notifier);
 	misc_deregister(&lis3dh_misc_device);
 	lis3dh_input_cleanup(lis);
 	lis3dh_device_power_off(lis);
