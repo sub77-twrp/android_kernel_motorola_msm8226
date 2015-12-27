@@ -167,12 +167,12 @@ static void __cpuinit asmp_resume(struct work_struct *work) {
 
 static void asmp_power_suspend(struct power_suspend *handle)
 {
-	queue_work(system_power_efficient_wq, &suspend_work);
+	schedule_work(&suspend_work);
 }
 
 static void asmp_power_resume(struct power_suspend *handle)
 {
-	queue_work(system_power_efficient_wq, &resume_work);
+	schedule_work(&resume_work);
 }
 
 static struct power_suspend __refdata asmp_power_suspend_handler = {
