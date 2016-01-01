@@ -92,6 +92,7 @@
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode";
 		qcom,mdss-dsi-min-refresh-rate = <45>;
+		qcom,ulps-enabled;
 
 		qcom,mdss-dsi-esd-det-mode = <1>;
 
@@ -239,6 +240,7 @@
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode";
 		qcom,mdss-dsi-min-refresh-rate = <45>;
+		qcom,ulps-enabled;
 
 		qcom,mdss-dsi-esd-det-mode = <1>;
 
@@ -345,6 +347,7 @@
 		qcom,mdss-dsi-pan-enable-dynamic-fps;
 		qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode";
 		qcom,mdss-dsi-min-refresh-rate = <45>;
+		qcom,ulps-enabled;
 
 		qcom,mdss-dsi-esd-det-mode = <1>;
 
