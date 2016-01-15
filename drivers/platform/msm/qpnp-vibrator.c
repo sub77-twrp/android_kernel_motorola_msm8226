@@ -237,6 +237,13 @@ static void qpnp_vib_enable(struct timed_output_dev *dev, int value)
 	spin_unlock_irqrestore(&vib->lock, flags);
 }
 
+#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
+void set_vibrate(int value)
+{
+	qpnp_vib_enable(&vib_dev->timed_dev, value);
+}
+#endif
+
 static void qpnp_vib_update(struct work_struct *work)
 {
 	struct qpnp_vib *vib = container_of(work, struct qpnp_vib,

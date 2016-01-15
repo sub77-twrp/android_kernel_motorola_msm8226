@@ -42,6 +42,9 @@
 #include <linux/input/sweep2wake.h>
 #include <linux/input/doubletap2wake.h>
 #endif
+#ifdef CONFIG_PWRKEY_SUSPEND
+#include <linux/qpnp/power-on.h>
+#endif
 
 #define CT406_I2C_RETRIES	2
 #define CT406_I2C_RETRY_DELAY	10
@@ -569,7 +572,7 @@ static void ct406_prox_mode_uncovered(struct ct406_data *ct)
 	ct->prox_high_threshold = piht;
 	ct406_write_prox_thresholds(ct);
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
-	if (s2w_switch == 1 || dt2w_switch > 0) {
+	if (s2w_switch > 0 || dt2w_switch > 0 || camera_switch > 0) {
 		prox_covered = false;
 		if (ct_active) {
 			touch_resume();
@@ -592,7 +595,7 @@ static void ct406_prox_mode_covered(struct ct406_data *ct)
 	ct->prox_high_threshold = piht;
 	ct406_write_prox_thresholds(ct);
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
-	if (s2w_switch == 1 || dt2w_switch > 0) {
+	if (s2w_switch > 0 || dt2w_switch > 0 || camera_switch > 0) {
 		prox_covered = true;
 		if (ct_active) {
 			touch_suspend();
@@ -1460,7 +1463,7 @@ static void ct406_work_prox_start(struct work_struct *work)
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 static void ct_suspend(struct work_struct *work)
 {
-	if (s2w_switch == 1 || dt2w_switch > 0) {
+	if (s2w_switch > 0 || dt2w_switch > 0 || camera_switch > 0) {
 		if (forced) {
 			ct406_disable_prox(ct406_misc_data);
 			forced = false;
@@ -1471,7 +1474,7 @@ static void ct_suspend(struct work_struct *work)
 
 static void __ref ct_resume(struct work_struct *work)
 {
-	if (s2w_switch == 1 || dt2w_switch > 0) {
+	if (s2w_switch > 0 || dt2w_switch > 0 || camera_switch > 0) {
 		if (!ct406_misc_data->prox_enabled) {
 			forced = true;
 			ct406_enable_prox(ct406_misc_data);
@@ -1493,7 +1496,7 @@ static void ct_enable(void)
 static int lcd_notifier_callback(struct notifier_block *this,
 				unsigned long event, void *data)
 {
-	if (s2w_call_activity || dt2w_call_activity)
+	if (s2w_call_activity || dt2w_call_activity || pwrkey_pressed)
 		return 0;
 
 	mutex_lock(&ct406_misc_data->mutex);
