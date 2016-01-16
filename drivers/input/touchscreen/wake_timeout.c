@@ -17,7 +17,7 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/lcd_notify.h>
-#include <linux/alarmtimer.h>
+#include <linux/android_alarm.h>
 #include <linux/qpnp/power-on.h>
 #include <linux/input.h>
 #include <linux/delay.h>
@@ -75,18 +75,22 @@ void wake_pwrtrigger(void) {
 
 static void wakefunc_rtc_start(void)
 {
-	ktime_t wakeup_time = { .tv64 = 0 };
+	ktime_t wakeup_time;
+	ktime_t curr_time;
 
-	if (!dt2w_switch && !s2w_switch)
+	if (!dt2w_switch && !s2w_switch && !camera_switch)
 		return;
 
 	wakefunc_triggered = false;
-	wakeup_time = ktime_add_us(wakeup_time, wake_timeout * USEC_PER_MSEC);
-	alarm_start_relative(&wakefunc_rtc, wakeup_time);
-	pr_info("%s: Alarm set to: %ld %ld\n",
+	curr_time = alarm_get_elapsed_realtime();
+	wakeup_time = ktime_add_us(curr_time,
+			(wake_timeout * 1000LL * 60000LL));
+	alarm_start_range(&wakefunc_rtc, wakeup_time,
+			wakeup_time);
+	pr_info("%s: Current Time: %ld, Alarm set to: %ld\n",
 			WAKEFUNC,
-			ktime_to_timeval(wakeup_time).tv_sec,
-			ktime_to_timeval(wakeup_time).tv_usec);
+			ktime_to_timeval(curr_time).tv_sec,
+			ktime_to_timeval(wakeup_time).tv_sec);
 		
 	pr_info("%s: Timeout started for %llu minutes\n", WAKEFUNC,
 			wake_timeout);
@@ -105,17 +109,15 @@ static void wakefunc_rtc_cancel(void)
 				WAKEFUNC);
 }
 
-static enum alarmtimer_restart
-wakefunc_rtc_callback(struct alarm *al, ktime_t now)
+static void wakefunc_rtc_callback(struct alarm *al)
 {
 	struct timeval ts;
-	ts = ktime_to_timeval(now);
+	ts = ktime_to_timeval(alarm_get_elapsed_realtime());
 
 	wake_pwrtrigger();
 	
 	pr_debug("%s: Time of alarm expiry: %ld\n", WAKEFUNC,
 			ts.tv_sec);
-	return ALARMTIMER_NORESTART;
 }
 
 //sysfs
@@ -164,8 +166,9 @@ static int lcd_notifier_callback(struct notifier_block *this,
 	case LCD_EVENT_ON_END:
 		break;
 	case LCD_EVENT_OFF_START:
-		if (pwrkey_pressed == false && wakefunc_triggered == false && wake_timeout > 0)
+		if (pwrkey_pressed == false && wakefunc_triggered == false && wake_timeout > 0) {
 			wakefunc_rtc_start();
+		}
 		break;
 	case LCD_EVENT_OFF_END:
 		break;
@@ -185,7 +188,7 @@ static int __init wake_timeout_init(void)
 		 WAKE_TIMEOUT_MAJOR_VERSION,
 		 WAKE_TIMEOUT_MINOR_VERSION);
 
-	alarm_init(&wakefunc_rtc, ALARM_REALTIME,
+	alarm_init(&wakefunc_rtc, ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
 			wakefunc_rtc_callback);
 
 	wake_pwrdev = input_allocate_device();
