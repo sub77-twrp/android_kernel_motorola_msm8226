@@ -357,6 +357,9 @@ static void s2w_input_event(struct input_handle *handle, unsigned int type,
 		(code==ABS_MT_TRACKING_ID) ? "ID" :
 		"undef"), code, value);
 #endif
+	if (s2w_switch == 0)
+		return;
+
 	if (pwrkey_pressed)
 		return;
 
@@ -457,6 +460,9 @@ static struct input_handler s2w_input_handler = {
 static int lcd_notifier_callback(struct notifier_block *this,
 				unsigned long event, void *data)
 {
+	if (s2w_switch == 0)
+		return NOTIFY_OK;
+
 	switch (event) {
 		case LCD_EVENT_ON_END:
 			s2w_scr_suspended = false;

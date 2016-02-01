@@ -77,9 +77,6 @@ static void wakefunc_rtc_start(void)
 {
 	ktime_t wakeup_time = { .tv64 = 0 };
 
-	if (!dt2w_switch && !s2w_switch)
-		return;
-
 	wakefunc_triggered = false;
 	wakeup_time = ktime_add_us(wakeup_time, wake_timeout * USEC_PER_MSEC);
 	alarm_start_relative(&wakefunc_rtc, wakeup_time);
@@ -157,6 +154,9 @@ EXPORT_SYMBOL_GPL(android_touch_kobj);
 static int lcd_notifier_callback(struct notifier_block *this,
 				unsigned long event, void *data)
 {
+	if (s2w_switch == 0 || dt2w_switch == 0 || camera_switch == 0)
+		return 0;
+
 	switch (event) {
 	case LCD_EVENT_ON_START:
 		wakefunc_rtc_cancel();

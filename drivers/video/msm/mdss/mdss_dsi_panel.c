@@ -40,6 +40,11 @@
 #include <linux/powersuspend.h>
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
+#include <linux/input/sweep2wake.h>
+#include <linux/input/doubletap2wake.h>
+#endif
+
 #ifdef CONFIG_PWRKEY_SUSPEND
 #include <linux/qpnp/power-on.h>
 #endif
@@ -895,7 +900,8 @@ end:
 	pr_info("%s-. Pwr_mode(0x0A) = 0x%x\n", __func__, pwr_mode);
 
 #ifdef CONFIG_PWRKEY_SUSPEND
-	pwrkey_pressed = false;	
+	if (s2w_switch > 0 || dt2w_switch > 0 || camera_switch > 0)
+		pwrkey_pressed = false;	
 #endif
 	return 0;
 }
