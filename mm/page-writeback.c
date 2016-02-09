@@ -37,10 +37,12 @@
 #include <linux/mm_inline.h>
 #include <trace/events/writeback.h>
 #ifdef CONFIG_DYNAMIC_PAGE_WRITEBACK
-#include <linux/powersuspend.h>
+#include <linux/lcd_notify.h>
 #endif
 
 #include "internal.h"
+
+static struct notifier_block notif;
 
 /*
  * Sleep at most 200ms at a time in balance_dirty_pages().
@@ -1826,7 +1828,7 @@ static struct notifier_block __cpuinitdata ratelimit_nb = {
 /*
  * Sets the dirty page writebacks interval for suspended system
  */
-static void dirty_writeback_early_suspend(struct power_suspend *h)
+static void dirty_writeback_suspend(void)
 {
 	if (dyn_dirty_writeback_enabled)
 		set_dirty_writeback_status(false);
@@ -1835,19 +1837,31 @@ static void dirty_writeback_early_suspend(struct power_suspend *h)
 /*
  * Sets the dirty page writebacks interval for active system
  */
-static void dirty_writeback_late_resume(struct power_suspend *h)
+static void dirty_writeback_resume(void)
 {
 	if (dyn_dirty_writeback_enabled)
 		set_dirty_writeback_status(true);
 }
 
 /*
- * Struct for the dirty page writeback management during suspend/resume
+ * Struct for the dirty page writeback management during LCD on/off
  */
-static struct power_suspend dirty_writeback_power_suspend = {
-	.suspend = dirty_writeback_early_suspend,
-	.resume = dirty_writeback_late_resume,
-};
+static int lcd_notifier_callback(struct notifier_block *this,
+				unsigned long event, void *data)
+{
+	switch (event) {
+	case LCD_EVENT_ON_START:
+			dirty_writeback_resume();
+			break;
+	case LCD_EVENT_OFF_END:
+			dirty_writeback_suspend();
+			break;
+	default:
+			break;
+	}
+	return NOTIFY_OK;
+}
+
 #endif
 
 /*
@@ -1874,7 +1888,9 @@ void __init page_writeback_init(void)
 
 #ifdef CONFIG_DYNAMIC_PAGE_WRITEBACK
 	/* Register the dirty page writeback management during suspend/resume */
-	register_power_suspend(&dirty_writeback_power_suspend);
+	notif.notifier_call = lcd_notifier_callback;
+	if (lcd_register_client(&notif))
+		pr_err("Dynamic Page Writeback: Failed to register LCD notifier callback\n");
 #endif
 
 	writeback_set_ratelimit();
