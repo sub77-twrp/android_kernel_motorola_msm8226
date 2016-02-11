@@ -11,8 +11,8 @@
 #include <linux/linkage.h>
 
 #ifdef CONFIG_KEXEC_HARDBOOT
-    #include <asm/kexec.h>
-    #include <asm/memory.h>
+#include <asm/kexec.h>
+#include <asm/memory.h>
 #endif
 
 /*
@@ -384,11 +384,6 @@ restart:	adr	r0, LC0
 		add	r10, r10, r5
 		add	sp, sp, r5
 dtb_check_done:
-#endif
-
-#ifdef CONFIG_KEXEC_HARDBOOT
-  #include <asm/kexec.h>
-  #include <asm/memory.h>
 #endif
 
 /*
