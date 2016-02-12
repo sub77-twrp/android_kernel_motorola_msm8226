@@ -37,10 +37,6 @@
 #include "mdss_fb.h"
 #include "dsi_v2.h"
 
-#ifdef CONFIG_POWERSUSPEND
-#include <linux/powersuspend.h>
-#endif
-
 #ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
 #include <linux/input/sweep2wake.h>
 #endif
@@ -807,10 +803,6 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_POWERSUSPEND
-	set_power_suspend_state_hook(POWER_SUSPEND_INACTIVE);
-#endif
-
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 	mipi  = &pdata->panel_info.mipi;
@@ -994,10 +986,6 @@ disable_regs:
 #endif
 
 	pr_info("%s-:\n", __func__);
-
-#ifdef CONFIG_POWERSUSPEND
-	set_power_suspend_state_hook(POWER_SUSPEND_ACTIVE);
-#endif
 
 #ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
 	if (s2w_switch == 1) {
