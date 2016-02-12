@@ -23,9 +23,6 @@
 
 extern bool s2w_scr_suspended;
 extern bool s2w_call_activity;
-extern int s2w_switch;
-extern int camera_switch;
-extern int gestures_switch;
-void wake_pwrtrigger(void);
+extern int s2w_switch, s2w_s2sonly;
 
 #endif	/* _LINUX_SWEEP2WAKE_H */

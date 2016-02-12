@@ -4803,12 +4803,12 @@ int voc_end_voice_call(uint32_t session_id)
 		v->voc_state = VOC_RELEASE;
 #ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
 	if (s2w_switch > 0) {
-		s2w_call_activity = true;
+		s2w_call_activity = false;
 	}
 #endif
 #ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
 	if (dt2w_switch > 0) {
-		dt2w_call_activity = true;
+		dt2w_call_activity = false;
 	}
 #endif
 	} else {
