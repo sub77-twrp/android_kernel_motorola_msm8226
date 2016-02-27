@@ -54,3 +54,9 @@ config MDSS_QUICKDRAW
 	default n
 	---help---
 	  MDSS support for Framebuffer quickdraw
+
+config LCD_NOTIFY
+	bool "LCD on/off state"
+	default y
+	---help---
+	  Detect LCD on/off state.
