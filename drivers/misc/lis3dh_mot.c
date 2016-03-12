@@ -27,7 +27,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
-#include <linux/suspend.h>
+#include <linux/lcd_notify.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/lis3dh_mot.h>
@@ -166,7 +166,7 @@ struct lis3dh_data {
 
 	int update_odr;
 
-	struct notifier_block pm_notifier;
+	struct notifier_block lcd_notify;
 
 	int mode_before_suspend;
 };
@@ -1057,19 +1057,19 @@ static int lis3dh_suspend(struct lis3dh_data *lis)
 	return 0;
 }
 
-static int lis3dh_pm_event(struct notifier_block *this,
+static int lcd_notifier_callback(struct notifier_block *this,
 	unsigned long event, void *ptr)
 {
 	struct lis3dh_data *lis = container_of(this,
-		struct lis3dh_data, pm_notifier);
+		struct lis3dh_data, lcd_notify);
 
 	mutex_lock(&lis->lock);
 
 	switch (event) {
-	case PM_SUSPEND_PREPARE:
+	case LCD_EVENT_OFF_END:
 		lis3dh_suspend(lis);
 		break;
-	case PM_POST_SUSPEND:
+	case LCD_EVENT_ON_START:
 		lis3dh_resume(lis);
 		break;
 	}
@@ -1250,10 +1250,10 @@ static int lis3dh_probe(struct i2c_client *client,
 
 	lis3dh_device_power_off(lis);
 
-	lis->pm_notifier.notifier_call = lis3dh_pm_event;
-	err = register_pm_notifier(&lis->pm_notifier);
+	lis->lcd_notify.notifier_call = lcd_notifier_callback;
+	err = lcd_register_client(&lis->lcd_notify);
 	if (err < 0) {
-		pr_err("%s:Register_pm_notifier failed: %d\n", __func__, err);
+		pr_err("%s:Register_lcd_notify failed: %d\n", __func__, err);
 		goto err5;
 	}
 
@@ -1295,7 +1295,7 @@ static int __devexit lis3dh_remove(struct i2c_client *client)
 		regulator_put(lis->vdd);
 	}
 
-	unregister_pm_notifier(&lis->pm_notifier);
+	lcd_unregister_client(&lis->lcd_notify);
 	misc_deregister(&lis3dh_misc_device);
 	lis3dh_input_cleanup(lis);
 	lis3dh_device_power_off(lis);
