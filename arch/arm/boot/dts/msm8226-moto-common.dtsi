@@ -82,6 +82,10 @@
 	qcom,dsi-pref-prim-pan = <&mot_cmi_720p_vid_v2>;
 };
 
+&msm_gpu {
+	qcom,l2pc-cpu-mask = <0x0000000F>;
+};
+
 &apc_vreg_corner {
 	qcom,cpr-voltage-ceiling = <1140000 1150000 1280000>;
 	qcom,cpr-voltage-floor = <1140000 1140000 1140000>;
