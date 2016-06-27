@@ -43,6 +43,10 @@
 #include <linux/rculist.h>
 #include <linux/apanic_mmc.h>
 
+#ifdef CONFIG_LLCON
+#include <video/llcon.h>
+#endif
+
 #include <asm/uaccess.h>
 
 #include <mach/msm_rtb.h>
@@ -742,6 +746,10 @@ static inline void emit_log_char_pmem(char c);
 
 static void emit_log_char(char c)
 {
+#ifdef CONFIG_LLCON
+	llcon_emit_log_char(c);
+#endif
+
 	if (log_no_ring && log_end - log_start >= log_buf_len) return;
 
 	emit_log_char_pmem(c);

@@ -45,6 +45,10 @@
 #include <linux/memory_alloc.h>
 #include <linux/kthread.h>
 
+#ifdef CONFIG_LLCON
+#include <video/llcon.h>
+#endif
+
 #include <mach/board.h>
 #include <mach/memory.h>
 #include <mach/iommu.h>
@@ -2632,7 +2636,6 @@ static int mdss_fb_display_commit(struct fb_info *info,
 	return ret;
 }
 
-
 static int mdss_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			 unsigned long arg)
 {
@@ -2644,6 +2647,15 @@ static int mdss_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	struct msm_sync_pt_data *sync_pt_data = NULL;
 	if (!info || !info->par)
 		return -EINVAL;
+#ifdef CONFIG_LLCON
+	if ( cmd != MSMFB_NOTIFY_UPDATE
+	  && cmd != MSMFB_OVERLAY_VSYNC_CTRL
+	  && cmd != MSMFB_METADATA_GET
+	  && cmd != MSMFB_DISPLAY_COMMIT ) {
+		llcon_exit();
+	}
+#endif
+
 	mfd = (struct msm_fb_data_type *)info->par;
 	mdss_fb_power_setting_idle(mfd);
 	if ((cmd != MSMFB_VSYNC_CTRL) && (cmd != MSMFB_OVERLAY_VSYNC_CTRL) &&
