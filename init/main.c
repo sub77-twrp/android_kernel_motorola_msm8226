@@ -6,7 +6,7 @@
  *  GK 2/5/95  -  Changed to support mounting root fs via NFS
  *  Added initrd & change_root: Werner Almesberger & Hans Lermen, Feb '96
  *  Moan early if gcc is old, avoiding bogus kernels - Paul Gortmaker, May '96
- *  Simplified starting of init:  Michael A. Griffith <grif@acm.org> 
+ *  Simplified starting of init:  Michael A. Griffith <grif@acm.org>
  */
 
 #include <linux/types.h>
@@ -759,8 +759,10 @@ static void __init do_initcalls(void)
 {
 	int level;
 
-	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++)
+	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++) {
+		printk("do_initcall_level: %s \n", initcall_level_names[level]);     // test!
 		do_initcall_level(level);
+	}
 }
 
 /*
@@ -772,6 +774,9 @@ static void __init do_initcalls(void)
  */
 static void __init do_basic_setup(void)
 {
+	pmem_log_init();       // test!
+	pmem_log_start(3);     // test!
+
 	cpuset_init_smp();
 	usermodehelper_init();
 	shmem_init();
